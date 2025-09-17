@@ -1,0 +1,27 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files:
+  # - "first_rules.yml"
+  # - "second_rules.yml"
+
+scrape_configs:
+  # Prometheus itself
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # Notification Service API
+  - job_name: 'notification-api'
+    static_configs:
+      - targets: ['notification-api:8080']
+    metrics_path: '/metrics'
+    scrape_interval: 10s
+
+  # Optional: RabbitMQ metrics (requires rabbitmq_prometheus plugin)
+  - job_name: 'rabbitmq'
+    static_configs:
+      - targets: ['rabbitmq:15692']
+    metrics_path: '/metrics'
+    scrape_interval: 30s

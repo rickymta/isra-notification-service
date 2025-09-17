@@ -1,0 +1,5 @@
+E:\Github\draft\04\isra-notification-service\src\NotificationService.Infrastructure\obj\Debug\net9.0\NotificationService.Infrastructure.csproj.AssemblyReference.cache
+E:\Github\draft\04\isra-notification-service\src\NotificationService.Infrastructure\obj\Debug\net9.0\NotificationService.Infrastructure.GeneratedMSBuildEditorConfig.editorconfig
+E:\Github\draft\04\isra-notification-service\src\NotificationService.Infrastructure\obj\Debug\net9.0\NotificationService.Infrastructure.AssemblyInfoInputs.cache
+E:\Github\draft\04\isra-notification-service\src\NotificationService.Infrastructure\obj\Debug\net9.0\NotificationService.Infrastructure.AssemblyInfo.cs
+E:\Github\draft\04\isra-notification-service\src\NotificationService.Infrastructure\obj\Debug\net9.0\NotificationService.Infrastructure.csproj.CoreCompileInputs.cache

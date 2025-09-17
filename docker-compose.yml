@@ -1,0 +1,183 @@
+version: '3.8'
+
+services:
+  # MongoDB database
+  mongodb:
+    image: mongo:8.0
+    container_name: notification-mongodb
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: password123
+      MONGO_INITDB_DATABASE: NotificationService
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+      - ./scripts/mongodb-init.js:/docker-entrypoint-initdb.d/init-mongo.js:ro
+    networks:
+      - notification-network
+
+  # Redis cache
+  redis:
+    image: redis:7.4-alpine
+    container_name: notification-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --requirepass redis123
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - notification-network
+
+  # RabbitMQ message broker
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    container_name: notification-rabbitmq
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    ports:
+      - "5672:5672"   # AMQP port
+      - "15672:15672" # Management UI
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - notification-network
+
+  # Elasticsearch for logging
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.11.0
+    container_name: notification-elasticsearch
+    restart: unless-stopped
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+    networks:
+      - notification-network
+
+  # Kibana for log visualization
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.11.0
+    container_name: notification-kibana
+    restart: unless-stopped
+    environment:
+      ELASTICSEARCH_HOSTS: http://elasticsearch:9200
+    ports:
+      - "5601:5601"
+    depends_on:
+      - elasticsearch
+    networks:
+      - notification-network
+
+  # Prometheus for metrics
+  prometheus:
+    image: prom/prometheus:v2.47.0
+    container_name: notification-prometheus
+    restart: unless-stopped
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    networks:
+      - notification-network
+
+  # Grafana for metrics visualization
+  grafana:
+    image: grafana/grafana:10.2.0
+    container_name: notification-grafana
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin123
+      GF_USERS_ALLOW_SIGN_UP: false
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+    depends_on:
+      - prometheus
+    networks:
+      - notification-network
+
+  # Notification Service API
+  notification-api:
+    build:
+      context: .
+      dockerfile: src/NotificationService.Api/Dockerfile
+    container_name: notification-api
+    restart: unless-stopped
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:8080
+      - MongoDB__ConnectionString=mongodb://admin:password123@mongodb:27017/NotificationService?authSource=admin
+      - Redis__ConnectionString=redis:6379,password=redis123
+      - RabbitMQ__ConnectionString=amqp://guest:guest@rabbitmq:5672/
+      - Logging__Elasticsearch__Enabled=true
+      - Logging__Elasticsearch__Url=http://elasticsearch:9200
+    ports:
+      - "8080:8080"
+    depends_on:
+      - mongodb
+      - redis
+      - rabbitmq
+      - elasticsearch
+    networks:
+      - notification-network
+    volumes:
+      - api_logs:/app/logs
+
+  # Notification Service Worker
+  notification-worker:
+    build:
+      context: .
+      dockerfile: src/NotificationService.Worker/Dockerfile
+    container_name: notification-worker
+    restart: unless-stopped
+    environment:
+      - DOTNET_ENVIRONMENT=Development
+      - MongoDB__ConnectionString=mongodb://admin:password123@mongodb:27017/NotificationService?authSource=admin
+      - Redis__ConnectionString=redis:6379,password=redis123
+      - RabbitMQ__ConnectionString=amqp://guest:guest@rabbitmq:5672/
+      - Logging__Elasticsearch__Enabled=true
+      - Logging__Elasticsearch__Url=http://elasticsearch:9200
+    depends_on:
+      - mongodb
+      - redis
+      - rabbitmq
+      - elasticsearch
+    networks:
+      - notification-network
+    volumes:
+      - worker_logs:/app/logs
+
+networks:
+  notification-network:
+    driver: bridge
+
+volumes:
+  mongodb_data:
+  redis_data:
+  rabbitmq_data:
+  elasticsearch_data:
+  prometheus_data:
+  grafana_data:
+  api_logs:
+  worker_logs:
